@@ -20,7 +20,7 @@ int score[POPULATION_SIZE];
 int children_score[CHILDREN_SIZE];
 int accum_score[POPULATION_SIZE];
 
-void calculuate_score() {
+void calculate_score() {
 
   int i, j; 
 
@@ -61,8 +61,8 @@ void crossover(int p1, int p2, int child) {
 
   int crossover_point = rand() % vertex_size;
 
-  memcpy(child_population_pool[child], population_pool[p1], crossover_point * sizeof(int));
-  memcpy(child_population_pool[child] + crossover_point, population_pool[p2] + crossover_point, (vertex_size - crossover_point) * vertex_size);
+  memcpy(children_pool[child], population_pool[p1], crossover_point * sizeof(int));
+  memcpy(children_pool[child] + crossover_point, population_pool[p2] + crossover_point, (vertex_size - crossover_point) * vertex_size);
 }
 
 int find_max_chromosome() {
@@ -93,7 +93,7 @@ int find_max_child_chromosome() {
   return max_index;
 }
 
-int mutate(int index) {
+void mutate(int index) {
 
   int mutation_start_point = rand() % vertex_size;
   int mutation_end_point = rand() % vertex_size;
@@ -125,7 +125,7 @@ int main(int argc, char* argv[]) {
   start_time = clock();
   end_time = (TIME_OUT - TIME_PADDING) * CLOCKS_PER_SEC;
 
-  if (argc != 4)
+  if (argc != 3)
     return 0;
 
   srand(time(NULL));
@@ -195,7 +195,7 @@ int main(int argc, char* argv[]) {
   }
   int max_value = -1;
   int max_index;
-  for (i = 0; i < POPULATION_SIZE) {
+  for (i = 0; i < POPULATION_SIZE; i++) {
     if (max_value < score[i]) {
       max_value = score[i];
       max_index = i;
@@ -204,11 +204,12 @@ int main(int argc, char* argv[]) {
 
   FILE *out = fopen(argv[2], "w");
   for (i = 0; i < POPULATION_SIZE -1; i++) {
-    fprintf(out, "%d ", population[max_index][i]);
+    fprintf(out, "%d ", population_pool[max_index][i]);
   }
-  fprintf(out, "%d", population[max_index][POPULATION_SIZE - 1]);
+  fprintf(out, "%d", population_pool[max_index][POPULATION_SIZE - 1]);
 
-  fcloseall();
+  fclose(in);
+  fclose(out);
   return 0;
 }
 
