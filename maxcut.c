@@ -13,12 +13,60 @@
 
 int vertex_size, edge_size;
 int edges[MAX_EDGE_SIZE][3];
+int adj_list[MAX_VERTEX_SIZE][MAX_VERTEX_SIZE];
+int adj_list_weight[MAX_VERTEX_SIZE][MAX_VERTEX_SIZE];
+int adj_list_len[MAX_VERTEX_SIZE];
 int population_pool[POPULATION_SIZE][MAX_VERTEX_SIZE];
 int children_pool[CHILDREN_SIZE][MAX_VERTEX_SIZE];
 int next_gen_pool[POPULATION_SIZE][MAX_VERTEX_SIZE];
 int score[POPULATION_SIZE];
 int children_score[CHILDREN_SIZE];
 int accum_score[POPULATION_SIZE];
+
+int delta (int *chromosome, int vertex) {
+
+  int i, inv_group = 1 - chromosome[vertex];
+  int gain = 0;
+
+  for(i = 0; i < adj_list_len[vertex]; i++) {
+    if (inv_group + chromosome[adj_list[vertex][i]] == 1) {
+      gain += adj_list_weight[vertex][i];
+    } else {
+      gain -= adj_list_weight[vertex][i];
+    }
+  }
+  return gain;
+}
+
+void local_optimize(int *chromosome) {
+
+  int i, j, temp;
+  int *permutation = malloc(vertex_size * sizeof(int));
+
+  for (i = 0; i < vertex_size; i++) {
+    permutation[i] = i;
+  }
+
+  for (i = vertex_size - 1; i >= 0; i--) {
+    j = rand() % (i + 1);
+    temp = permutation[j];
+    permutation[j] = permutation[i];
+    permutation[i] = temp;
+  }
+
+  int improved;
+
+  do {
+    improved = 0;
+    for (i = 0; i < vertex_size; i++) {
+      j = permutation[i];
+      if (delta(chromosome, j) > 0) {
+        chromosome[j] = 1 - chromosome[j];
+        improved = 1;
+      }
+    }
+  } while(improved != 0);
+}
 
 void calculate_score() {
 
@@ -128,6 +176,7 @@ int main(int argc, char* argv[]) {
     return 0;
 
   srand(time(NULL));
+  memset(adj_list_len, 0, MAX_VERTEX_SIZE * sizeof(int));
 
   // Read input file
   FILE *in = fopen(argv[1], "r");
@@ -136,6 +185,13 @@ int main(int argc, char* argv[]) {
     fscanf(in, "%d %d %d", &edges[i][0], &edges[i][1], &edges[i][2]);
     edges[i][0] -= 1;
     edges[i][1] -= 1;
+
+    adj_list[edges[i][0]][adj_list_len[edges[i][0]]] = edges[i][1];
+    adj_list_weight[edges[i][0]][adj_list_len[edges[i][0]]] = edges[i][2];
+    adj_list[edges[i][1]][adj_list_len[edges[i][1]]] = edges[i][0];
+    adj_list_weight[edges[i][1]][adj_list_len[edges[i][1]]] = edges[i][2];
+    adj_list_len[edges[i][0]] += 1;
+    adj_list_len[edges[i][1]] += 1;
 //    printf("%d %d %d\n", edges[i][0], edges[i][1], edges[i][2]);
   }
 
@@ -148,6 +204,7 @@ int main(int argc, char* argv[]) {
         return 0;
       }
     }
+    local_optimize(population_pool[i]);
   }
   calculate_score();
 
@@ -179,6 +236,7 @@ int main(int argc, char* argv[]) {
       }
       // Crossover
       crossover(parent[0], parent[1], i);
+      local_optimize(children_pool[i]);
     }
     calculate_children_score();
     // Replace using u + lambda strategy
@@ -195,13 +253,15 @@ int main(int argc, char* argv[]) {
     }
     memcpy(population_pool, next_gen_pool, vertex_size * POPULATION_SIZE * sizeof(int));
     // Mutation
-    for (i = 0; i < POPULATION_SIZE * MUTATION_RATE; i++)
-      mutate(rand() % POPULATION_SIZE);
+    for (i = 0; i < POPULATION_SIZE * MUTATION_RATE; i++) {
+      j = rand() % POPULATION_SIZE;
+      mutate(j);
+      local_optimize(population_pool[j]);
+    }
     calculate_score();
     time_t curr_time = clock();
     if (curr_time >= end_time)
-      break;
- /*  
+      break;  
     double average = 0;
     int max_score = -1;
     for (i = 0; i < POPULATION_SIZE; i++) {
@@ -211,7 +271,7 @@ int main(int argc, char* argv[]) {
       }
     }
     average /= POPULATION_SIZE;
-    printf("%d,%f\n", max_score, average);*/
+    printf("%d,%f\n", max_score, average);
   }
   int max_value = -1;
   int max_index;
