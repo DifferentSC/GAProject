@@ -4,10 +4,10 @@
 #include <time.h>
 
 #define TIME_OUT 180
-#define TIME_PADDING 20
-#define POPULATION_SIZE 800
+#define TIME_PADDING 10
+#define POPULATION_SIZE 500
 #define CHILDREN_SIZE 1000
-#define MAX_VERTEX_SIZE 800
+#define MAX_VERTEX_SIZE 1000
 #define MAX_EDGE_SIZE 10000
 #define MUTATION_RATE 0.005
 
@@ -27,7 +27,7 @@ void calculate_score() {
   for(i = 0; i < POPULATION_SIZE; i++) {
     score[i] = 0;
     for(j = 0; j < edge_size; j++) {
-      if (population_pool[i][edges[j][0]] != population_pool[i][edges[j][1]]) {
+      if (population_pool[i][edges[j][0]] + population_pool[i][edges[j][1]] == 1) {
         score[i] += edges[j][2];
       }
     }
@@ -47,7 +47,7 @@ void calculate_children_score() {
   for(i = 0; i < CHILDREN_SIZE; i++) {
     children_score[i] = 0;
     for(j = 0; j < edge_size; j++) {
-      if (children_pool[i][edges[j][0]] != children_pool[i][edges[j][1]]) {
+      if (children_pool[i][edges[j][0]] + children_pool[i][edges[j][1]] == 1) {
         children_score[i] += edges[j][2];
       }
     }
@@ -136,16 +136,22 @@ int main(int argc, char* argv[]) {
     fscanf(in, "%d %d %d", &edges[i][0], &edges[i][1], &edges[i][2]);
     edges[i][0] -= 1;
     edges[i][1] -= 1;
-    printf("%d %d %d\n", edges[i][0], edges[i][1], edges[i][2]);
+//    printf("%d %d %d\n", edges[i][0], edges[i][1], edges[i][2]);
   }
 
   // Create first population
   for (i = 0; i < POPULATION_SIZE; i++) {
-    for (j = 0; j < vertex_size; j++)
+    for (j = 0; j < vertex_size; j++) {
       population_pool[i][j] = rand() % 2;
+      if (population_pool[i][j] !=0 && population_pool[i][j] != 1) {
+        printf("Error!\n");
+        return 0;
+      }
+    }
   }
   calculate_score();
 
+  int gen = 1;
   while(1) {
     // Selection & Crossover step
     int score_sum = accum_score[POPULATION_SIZE-1];
@@ -176,7 +182,7 @@ int main(int argc, char* argv[]) {
     }
     calculate_children_score();
     // Replace using u + lambda strategy
-    for (i = 0; i < POPULATION_SIZE; i++) {
+    for (i = 0; i < CHILDREN_SIZE; i++) {
       int parent_max = find_max_chromosome();
       int child_max = find_max_child_chromosome();
       if (score[parent_max] > children_score[child_max]) {
@@ -195,6 +201,17 @@ int main(int argc, char* argv[]) {
     time_t curr_time = clock();
     if (curr_time >= end_time)
       break;
+ /*  
+    double average = 0;
+    int max_score = -1;
+    for (i = 0; i < POPULATION_SIZE; i++) {
+      average += score[i];
+      if (score[i] > max_score) {
+        max_score = score[i];
+      }
+    }
+    average /= POPULATION_SIZE;
+    printf("%d,%f\n", max_score, average);*/
   }
   int max_value = -1;
   int max_index;
@@ -220,9 +237,9 @@ int main(int argc, char* argv[]) {
   fprintf(out, "%d", result[result_length-1]);
   free(result);
   // Should be deleted!
-  printf("Result: %d\n", max_value);
+/*  printf("Result: %d\n", max_value);
+  printf("max_index: %d\n", max_index);*/
   fclose(in);
   fclose(out);
   return 0;
 }
-
