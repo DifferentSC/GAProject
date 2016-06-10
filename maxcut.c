@@ -4,12 +4,13 @@
 #include <time.h>
 
 #define TIME_OUT 180
-#define TIME_PADDING 10
-#define POPULATION_SIZE 500
-#define CHILDREN_SIZE 1000
-#define MAX_VERTEX_SIZE 1000
-#define MAX_EDGE_SIZE 10000
-#define MUTATION_RATE 0.005
+#define TIME_PADDING 20
+#define POPULATION_SIZE 5000
+#define CHILDREN_SIZE 10000
+#define MAX_VERTEX_SIZE 5000
+#define MAX_CROSSOVER_NUM 10
+#define MAX_EDGE_SIZE MAX_VERTEX_SIZE*MAX_VERTEX_SIZE/2
+#define MUTATION_RATE 0.10
 
 int vertex_size, edge_size;
 int edges[MAX_EDGE_SIZE][3];
@@ -104,12 +105,44 @@ void calculate_children_score() {
   }
 }
 
+int find_min_crossover_num(int *crossover_points, int crossover_num) {
+
+  int i;
+  int min_crossover_point = vertex_size, min_crossover_index = -1;
+  for (i = 0; i < crossover_num; i++) {
+    if (min_crossover_point > crossover_points[i]) {
+      min_crossover_point = crossover_points[i];
+      min_crossover_index = i;
+    }
+  }
+  if (min_crossover_index != -1)
+    crossover_points[min_crossover_index] = vertex_size;
+  return min_crossover_point;
+}
+
 void crossover(int p1, int p2, int child) {
 
-  int crossover_point = rand() % vertex_size;
+  int i;
+  int crossover_num = (rand() % MAX_CROSSOVER_NUM) + 1;
+  int *crossover_points = (int *)malloc(crossover_num * sizeof(int));
 
-  memcpy(children_pool[child], population_pool[p1], crossover_point * sizeof(int));
-  memcpy(children_pool[child] + crossover_point, population_pool[p2] + crossover_point, (vertex_size - crossover_point) * sizeof(int));
+  for (i = 0; i < crossover_num; i++) {
+    crossover_points[i] = (rand() % vertex_size) + 1;
+  }
+  int crossover_start = 0, crossover_end;
+  int cur_population = p1;
+  crossover_end = find_min_crossover_num(crossover_points, crossover_num);
+  for (i = 0; i < crossover_num; i++) {
+    memcpy(children_pool[child] + crossover_start, population_pool[cur_population], (crossover_end - crossover_start) * sizeof(int));
+    crossover_start = crossover_end;
+    crossover_end = find_min_crossover_num(crossover_points, crossover_num);
+    if (cur_population == p1)
+      cur_population = p2;
+    else
+      cur_population = p1;
+  }
+//  memcpy(children_pool[child], population_pool[p1], crossover_point * sizeof(int));
+//  memcpy(children_pool[child] + crossover_point, population_pool[p2] + crossover_point, (vertex_size - crossover_point) * sizeof(int));
 }
 
 int find_max_chromosome() {
@@ -155,13 +188,9 @@ void mutate(int index) {
 
   int length = mutation_end_point - mutation_start_point + 1;
 
-  int *rev_seq = (int *)malloc(length * sizeof(int));
-
   for (i = mutation_start_point; i <= mutation_end_point; i++) {
-    rev_seq[length - i + mutation_start_point - 1] = population_pool[index][i];
+     population_pool[index][i] = rand() % 2;
   }
-  memcpy(population_pool[index] + mutation_start_point, rev_seq, length * sizeof(int));
-  free(rev_seq);
 }
 
 int main(int argc, char* argv[]) {
@@ -240,16 +269,10 @@ int main(int argc, char* argv[]) {
     }
     calculate_children_score();
     // Replace using u + lambda strategy
-    for (i = 0; i < CHILDREN_SIZE; i++) {
-      int parent_max = find_max_chromosome();
+    for (i = 0; i < POPULATION_SIZE; i++) {
       int child_max = find_max_child_chromosome();
-      if (score[parent_max] > children_score[child_max]) {
-        memcpy(next_gen_pool[i], population_pool[parent_max], vertex_size * sizeof(int));
-        score[parent_max] = 0;
-      } else {
-        memcpy(next_gen_pool[i], children_pool[child_max], vertex_size * sizeof(int));
-        children_score[child_max] = 0;
-      }
+      memcpy(next_gen_pool[i], children_pool[child_max], vertex_size * sizeof(int));
+      children_score[child_max] = 0;
     }
     memcpy(population_pool, next_gen_pool, vertex_size * POPULATION_SIZE * sizeof(int));
     // Mutation
