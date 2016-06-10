@@ -6,7 +6,7 @@ TARGET = maxcut
 all : $(TARGET)
 
 $(TARGET) : maxcut.o
-	$(CC) -o $@ maxcut.o
+	$(CC) -lm -o $@ maxcut.o
 
 clean :
 	rm -f maxcut.o maxcut

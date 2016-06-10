@@ -2,15 +2,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 
 #define TIME_OUT 180
 #define TIME_PADDING 20
-#define POPULATION_SIZE 5000
-#define CHILDREN_SIZE 10000
+#define POPULATION_SIZE 40
+#define CHILDREN_SIZE 80
+#define CUT_POINT 0
 #define MAX_VERTEX_SIZE 5000
-#define MAX_CROSSOVER_NUM 10
-#define MAX_EDGE_SIZE MAX_VERTEX_SIZE*MAX_VERTEX_SIZE/2
-#define MUTATION_RATE 0.10
+#define MAX_CROSSOVER_NUM 1
+#define MAX_EDGE_SIZE MAX_VERTEX_SIZE*(MAX_VERTEX_SIZE-1)/2
+#define MUTATION_RATE 0.05
 
 int vertex_size, edge_size;
 int edges[MAX_EDGE_SIZE][3];
@@ -23,6 +25,9 @@ int next_gen_pool[POPULATION_SIZE][MAX_VERTEX_SIZE];
 int score[POPULATION_SIZE];
 int children_score[CHILDREN_SIZE];
 int accum_score[POPULATION_SIZE];
+char *output_path;
+
+time_t start_time, end_time, deadline_time;
 
 int delta (int *chromosome, int vertex) {
 
@@ -56,8 +61,10 @@ void local_optimize(int *chromosome) {
   }
 
   int improved;
+	int cnt = 0;
 
   do {
+		cnt++;
     improved = 0;
     for (i = 0; i < vertex_size; i++) {
       j = permutation[i];
@@ -66,7 +73,7 @@ void local_optimize(int *chromosome) {
         improved = 1;
       }
     }
-  } while(improved != 0);
+  } while(improved != 0 && cnt < 2);
 }
 
 void calculate_score() {
@@ -132,7 +139,7 @@ void crossover(int p1, int p2, int child) {
   int crossover_start = 0, crossover_end;
   int cur_population = p1;
   crossover_end = find_min_crossover_num(crossover_points, crossover_num);
-  for (i = 0; i < crossover_num; i++) {
+  for (i = 0; i < crossover_num + 1; i++) {
     memcpy(children_pool[child] + crossover_start, population_pool[cur_population], (crossover_end - crossover_start) * sizeof(int));
     crossover_start = crossover_end;
     crossover_end = find_min_crossover_num(crossover_points, crossover_num);
@@ -193,13 +200,53 @@ void mutate(int index) {
   }
 }
 
-int main(int argc, char* argv[]) {
+void check_time() {
 
-  time_t start_time, end_time;
+	int i;
+	time_t curr_time = clock();
+
+  if (curr_time >= end_time) {
+		if (curr_time >= deadline_time)
+			printf("Warning! Deadline over!\n");
+		int max_value = -1;
+  	int max_index;
+  	for (i = 0; i < POPULATION_SIZE; i++) {
+    	if (max_value < score[i]) {
+      	max_value = score[i];
+      	max_index = i;
+    	}
+  	}
+	  FILE *out = fopen(output_path, "w");
+  	int *result = (int *)malloc(vertex_size * sizeof(int));
+	  int result_length = 0;
+  	for (i = 0; i < vertex_size; i++) {
+    	if (population_pool[max_index][i] == 1) {
+      	result[result_length] = i + 1;
+	      result_length++;
+  	  }
+	  }
+  	for (i = 0; i < result_length - 1; i++) {
+    	fprintf(out, "%d ", result[i]);
+	  }
+  	fprintf(out, "%d", result[result_length-1]);
+	  free(result);
+  	// Should be deleted!
+	/*  printf("Result: %d\n", max_value);
+  	printf("max_index: %d\n", max_index);*/
+	  fclose(out);
+  	exit(0);
+	}
+
+}
+
+int main(int argc, char* argv[]) {
+ 
   int i, j, k;
 
   start_time = clock();
   end_time = (TIME_OUT - TIME_PADDING) * CLOCKS_PER_SEC;
+	deadline_time = TIME_OUT * CLOCKS_PER_SEC;
+	output_path = argv[2];
 
   if (argc != 3)
     return 0;
@@ -223,6 +270,7 @@ int main(int argc, char* argv[]) {
     adj_list_len[edges[i][1]] += 1;
 //    printf("%d %d %d\n", edges[i][0], edges[i][1], edges[i][2]);
   }
+	fclose(in);
 
   // Create first population
   for (i = 0; i < POPULATION_SIZE; i++) {
@@ -233,7 +281,7 @@ int main(int argc, char* argv[]) {
         return 0;
       }
     }
-    local_optimize(population_pool[i]);
+ //   local_optimize(population_pool[i]);
   }
   calculate_score();
 
@@ -265,26 +313,37 @@ int main(int argc, char* argv[]) {
       }
       // Crossover
       crossover(parent[0], parent[1], i);
-      local_optimize(children_pool[i]);
+ //     local_optimize(children_pool[i]);
+			check_time();
     }
     calculate_children_score();
-    // Replace using u + lambda strategy
-    for (i = 0; i < POPULATION_SIZE; i++) {
+		check_time();
+		// Replace using u + lambda strategy
+    for (i = 0; i < CUT_POINT; i++) {
+      int parent_max = find_max_chromosome();
+			memcpy(next_gen_pool[i], population_pool[parent_max], vertex_size * sizeof(int));
+			score[parent_max] = 0;
+    } 
+    for (i = CUT_POINT; i < POPULATION_SIZE; i++) {
       int child_max = find_max_child_chromosome();
       memcpy(next_gen_pool[i], children_pool[child_max], vertex_size * sizeof(int));
+			/*
+			if (i == CUT_POINT)
+				printf("Children Max: %d\n", children_score[child_max]);*/
       children_score[child_max] = 0;
     }
-    memcpy(population_pool, next_gen_pool, vertex_size * POPULATION_SIZE * sizeof(int));
+		for (i = 0; i < POPULATION_SIZE; i++) {
+	    memcpy(population_pool[i], next_gen_pool[i], vertex_size * sizeof(int));
+		}
     // Mutation
     for (i = 0; i < POPULATION_SIZE * MUTATION_RATE; i++) {
       j = rand() % POPULATION_SIZE;
       mutate(j);
       local_optimize(population_pool[j]);
-    }
+    }	
     calculate_score();
-    time_t curr_time = clock();
-    if (curr_time >= end_time)
-      break;  
+//		printf("After Children Max: %d\n", score[CUT_POINT]);
+		check_time();
     double average = 0;
     int max_score = -1;
     for (i = 0; i < POPULATION_SIZE; i++) {
@@ -296,33 +355,5 @@ int main(int argc, char* argv[]) {
     average /= POPULATION_SIZE;
     printf("%d,%f\n", max_score, average);
   }
-  int max_value = -1;
-  int max_index;
-  for (i = 0; i < POPULATION_SIZE; i++) {
-    if (max_value < score[i]) {
-      max_value = score[i];
-      max_index = i;
-    }
-  }
-
-  FILE *out = fopen(argv[2], "w");
-  int *result = (int *)malloc(vertex_size * sizeof(int));
-  int result_length = 0;
-  for (i = 0; i < vertex_size; i++) {
-    if (population_pool[max_index][i] == 1) {
-      result[result_length] = i + 1;
-      result_length++;
-    }
-  }
-  for (i = 0; i < result_length - 1; i++) {
-    fprintf(out, "%d ", result[i]);
-  }
-  fprintf(out, "%d", result[result_length-1]);
-  free(result);
-  // Should be deleted!
-/*  printf("Result: %d\n", max_value);
-  printf("max_index: %d\n", max_index);*/
-  fclose(in);
-  fclose(out);
   return 0;
 }
